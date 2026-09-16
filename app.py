@@ -10,6 +10,7 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
         "https://docs.google.com/forms/d/e/1FAIpQLSfONIExs2g6a97p9SA0Hb5ef3EHk4ETO5ZiKW6ikoYGSpI_Pg/viewform?"
         f"entry.2078962628=BTR+DELIVERY&entry.141705210={falcon_id}"
     )
+    print(f"DEBUG: Starting submission for Falcon ID: {falcon_id}, Type: {request_type}")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -22,8 +23,9 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
         page = context.new_page()
 
         try:
+            print(f"DEBUG: Navigating to form URL...")
             page.goto(form_url, timeout=60000, wait_until="domcontentloaded")
-            time.sleep(1.5)
+            time.sleep(2)
 
             # Handle draft prompts if they appear
             draft_buttons = page.locator(
@@ -31,6 +33,7 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                 'div[role="button"]:has-text("Discard draft")'
             )
             if draft_buttons.count() > 0 and draft_buttons.first.is_visible():
+                print("DEBUG: Clearing draft prompt...")
                 draft_buttons.first.click(force=True)
                 time.sleep(1)
 
@@ -41,8 +44,9 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                     email_input.fill("btrdeliverytickets@gmail.com")
                     email_input.dispatch_event('input')
                     email_input.dispatch_event('change')
-            except Exception:
-                pass
+                    print("DEBUG: Email successfully filled.")
+            except Exception as e:
+                print(f"DEBUG: Email fill skipped/failed: {e}")
 
             try:
                 page.mouse.wheel(0, 200)
@@ -50,30 +54,35 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                 copy_option = page.locator('div[role="checkbox"]:has-text("Send me a copy"), span:has-text("Send me a copy")').first
                 if copy_option.is_visible():
                     copy_option.click(force=True)
-            except Exception:
+                    print("DEBUG: 'Send me a copy' checkbox clicked.")
+            except Exception as e:
                 try:
                     page.get_by_label("Send me a copy of my responses").click(force=True)
-                except Exception:
-                    pass
+                    print("DEBUG: Clicked copy checkbox using label.")
+                except Exception as ex:
+                    print(f"DEBUG: Could not click copy checkbox: {ex}")
             # ---------------------------------------------------------
 
             # Select first dropdown/request type
             dropdowns = page.locator('div[role="listbox"]')
             if dropdowns.count() > 0 and dropdowns.first.is_visible():
+                print("DEBUG: Clicking first dropdown...")
                 dropdowns.first.click(force=True)
                 time.sleep(0.5)
                 option = page.locator(f'div[role="option"]:has-text("{request_type}")').first
                 if option.is_visible():
                     option.click(force=True)
+                    print(f"DEBUG: Selected request type -> {request_type}")
 
             time.sleep(1.5)
 
-            # Page navigation loop to step through form pages safely
+            # Page navigation loop
             max_pages = 10
             page_count = 0
 
             while page_count < max_pages:
                 if page.is_closed():
+                    print("DEBUG: Page closed unexpectedly.")
                     break
                 page_count += 1
 
@@ -82,11 +91,13 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                 if sec_dropdown.is_visible():
                     sec_text = sec_dropdown.inner_text()
                     if ("Choose" in sec_text or "Select" in sec_text) and extra_detail:
+                        print("DEBUG: Handling secondary dropdown...")
                         sec_dropdown.click(force=True)
                         time.sleep(0.5)
                         target_opt = page.locator(f'div[role="option"]:has-text("{extra_detail}")').first
                         if target_opt.is_visible():
                             target_opt.click(force=True)
+                            print(f"DEBUG: Selected extra detail -> {extra_detail}")
                             time.sleep(1)
 
                 # Fill extra details/text areas if needed
@@ -96,31 +107,33 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                         inp = text_inputs.nth(i)
                         if inp.is_visible() and inp.input_value() != str(falcon_id) and not inp.input_value():
                             inp.fill(str(extra_detail))
+                            print(f"DEBUG: Filled extra text input with -> {extra_detail}")
                             time.sleep(0.5)
                             break
 
-                # Check if the final Submit button is available on this page
+                # Check if final Submit button is visible
                 submit_btn = page.locator('div[role="button"]:has-text("Submit")').first
                 if submit_btn.is_visible():
+                    print("DEBUG: Submit button found! Clicking submit...")
                     submit_btn.click(force=True)
-                    
-                    # Wait explicitly to ensure Google Forms processes the submission
-                    try:
-                        page.wait_for_url("**/formResponse", timeout=10000)
-                    except Exception:
-                        time.sleep(4) # Fallback wait
-                    
+                    time.sleep(4)
+                    print("DEBUG: Form submission sequence completed successfully.")
                     return True
 
-                # Otherwise look for a Next button to proceed
+                # Otherwise look for a Next button
                 next_btn = page.locator('div[role="button"]:has-text("Next")').first
                 if next_btn.is_visible():
+                    print("DEBUG: Next button found. Clicking next page...")
                     next_btn.click(force=True)
                     time.sleep(2)
                 else:
+                    print("DEBUG: No Submit or Next button found. Stopping loop.")
                     break
 
             return True
+        except Exception as err:
+            print(f"CRITICAL ERROR in Playwright script: {err}")
+            raise err
         finally:
             browser.close()
 
