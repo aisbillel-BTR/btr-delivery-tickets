@@ -1,8 +1,10 @@
 ```python
 import os
 import time
+
 from flask import Flask, render_template, request, jsonify
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+
 
 app = Flask(__name__)
 
@@ -26,14 +28,14 @@ os.makedirs(DEBUG_DIR, exist_ok=True)
 
 
 # ============================================================
-# DEBUG SCREENSHOT
+# SAVE DEBUG SCREENSHOT
 # ============================================================
 
 def save_debug_screenshot(page, name):
     try:
         filename = os.path.join(
             DEBUG_DIR,
-            f"{int(time.time())}_{name}.png"
+            "{}_{}.png".format(int(time.time()), name)
         )
 
         page.screenshot(
@@ -41,33 +43,34 @@ def save_debug_screenshot(page, name):
             full_page=True
         )
 
-        print(f"DEBUG: Screenshot saved -> {filename}")
+        print("DEBUG: Screenshot saved -> {}".format(filename))
 
     except Exception as e:
-        print(f"DEBUG: Could not save screenshot: {e}")
+        print("DEBUG: Could not save screenshot: {}".format(e))
 
 
 # ============================================================
-# GET FORM URL
+# BUILD GOOGLE FORM URL
 # ============================================================
 
 def build_form_url(falcon_id):
+    company = COMPANY_NAME.replace(" ", "+")
+    falcon = str(falcon_id).strip()
+
     return (
-        f"{FORM_BASE_URL}?"
-        f"entry.2078962628={COMPANY_NAME.replace(' ', '+')}"
-        f"&entry.141705210={falcon_id}"
+        "{}?entry.2078962628={}&entry.141705210={}"
+        .format(FORM_BASE_URL, company, falcon)
     )
 
 
 # ============================================================
-# CHECK IF PAGE HAS GOOGLE FORM CONFIRMATION
+# VERIFY GOOGLE FORMS SUBMISSION
 # ============================================================
 
 def verify_submission(page):
 
     print("DEBUG: Verifying Google Forms submission...")
 
-    # Give Google Forms time to load the confirmation page
     try:
         page.wait_for_load_state(
             "domcontentloaded",
@@ -76,38 +79,42 @@ def verify_submission(page):
     except Exception:
         pass
 
-    time.sleep(2)
+    time.sleep(3)
 
     current_url = page.url
 
-    print(f"DEBUG: Current URL after submit: {current_url}")
+    print("DEBUG: URL after submit: {}".format(current_url))
 
-    # Google Forms confirmation pages normally contain
-    # "Your response has been recorded."
     confirmation_texts = [
         "Your response has been recorded",
         "Response recorded",
         "Thanks for filling out",
-        "Thank you for completing",
+        "Thank you for completing"
     ]
 
     for text in confirmation_texts:
 
         try:
+
             locator = page.get_by_text(
                 text,
                 exact=False
             )
 
-            if locator.count() > 0:
+            count = locator.count()
 
-                for i in range(locator.count()):
+            if count > 0:
+
+                for i in range(count):
 
                     try:
+
                         if locator.nth(i).is_visible():
 
                             print(
-                                f"SUCCESS: Google Forms confirmation found: {text}"
+                                "SUCCESS: Google Forms confirmation found: {}".format(
+                                    text
+                                )
                             )
 
                             save_debug_screenshot(
@@ -123,11 +130,10 @@ def verify_submission(page):
         except Exception:
             pass
 
-    # Additional URL check
     if "formResponse" in current_url:
 
         print(
-            "SUCCESS: Google Forms formResponse URL detected."
+            "SUCCESS: formResponse URL detected."
         )
 
         save_debug_screenshot(
@@ -150,7 +156,7 @@ def verify_submission(page):
 
 
 # ============================================================
-# PLAYWRIGHT SUBMISSION
+# MAIN PLAYWRIGHT SUBMISSION
 # ============================================================
 
 def run_playwright_submission(
@@ -160,32 +166,38 @@ def run_playwright_submission(
 ):
 
     if not falcon_id:
-        raise Exception("Falcon/Rider ID is required.")
+        raise Exception(
+            "Falcon/Rider ID is required."
+        )
 
     if not request_type:
-        raise Exception("Request Type is required.")
+        raise Exception(
+            "Request Type is required."
+        )
 
     print("=" * 70)
     print("STARTING GOOGLE FORMS SUBMISSION")
     print("=" * 70)
 
-    print(f"DEBUG: Falcon ID    = {falcon_id}")
-    print(f"DEBUG: Request Type = {request_type}")
-    print(f"DEBUG: Extra Detail = {extra_detail}")
+    print("DEBUG: Falcon ID = {}".format(falcon_id))
+    print("DEBUG: Request Type = {}".format(request_type))
+    print("DEBUG: Extra Detail = {}".format(extra_detail))
 
     form_url = build_form_url(falcon_id)
 
-    print(f"DEBUG: Form URL = {form_url}")
+    print("DEBUG: Form URL = {}".format(form_url))
+
+    browser = None
 
     with sync_playwright() as p:
 
-        browser = None
-
         try:
 
-            # ------------------------------------------------
-            # LAUNCH BROWSER
-            # ------------------------------------------------
+            # ==================================================
+            # START CHROMIUM
+            # ==================================================
+
+            print("DEBUG: Starting Chromium...")
 
             browser = p.chromium.launch(
                 headless=True,
@@ -193,7 +205,7 @@ def run_playwright_submission(
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
                     "--disable-blink-features=AutomationControlled",
-                    "--disable-dev-shm-usage",
+                    "--disable-dev-shm-usage"
                 ]
             )
 
@@ -212,9 +224,9 @@ def run_playwright_submission(
 
             page = context.new_page()
 
-            # ------------------------------------------------
-            # NAVIGATE TO GOOGLE FORM
-            # ------------------------------------------------
+            # ==================================================
+            # OPEN GOOGLE FORM
+            # ==================================================
 
             print("DEBUG: Opening Google Form...")
 
@@ -226,11 +238,7 @@ def run_playwright_submission(
 
             time.sleep(3)
 
-            print(f"DEBUG: Page loaded: {page.url}")
-
-            # ------------------------------------------------
-            # CHECK THAT GOOGLE FORM LOADED
-            # ------------------------------------------------
+            print("DEBUG: Page URL = {}".format(page.url))
 
             if "docs.google.com/forms" not in page.url:
 
@@ -243,9 +251,9 @@ def run_playwright_submission(
                     "Google Form did not load correctly."
                 )
 
-            # ------------------------------------------------
-            # HANDLE GOOGLE FORMS DRAFT
-            # ------------------------------------------------
+            # ==================================================
+            # HANDLE DRAFT MESSAGE
+            # ==================================================
 
             try:
 
@@ -261,7 +269,7 @@ def run_playwright_submission(
                 ):
 
                     print(
-                        "DEBUG: Google Forms draft detected."
+                        "DEBUG: Draft message detected."
                     )
 
                     draft_buttons.first.click(
@@ -273,49 +281,12 @@ def run_playwright_submission(
             except Exception as e:
 
                 print(
-                    f"DEBUG: Draft handling skipped: {e}"
+                    "DEBUG: Draft handling skipped: {}".format(e)
                 )
 
-            # ------------------------------------------------
-            # COMPANY NAME
-            # ------------------------------------------------
-
-            print("DEBUG: Checking Company Name...")
-
-            try:
-
-                company_inputs = page.locator(
-                    'input[type="text"]'
-                )
-
-                for i in range(company_inputs.count()):
-
-                    inp = company_inputs.nth(i)
-
-                    if not inp.is_visible():
-                        continue
-
-                    try:
-                        value = inp.input_value()
-
-                        if value == COMPANY_NAME:
-                            print(
-                                "DEBUG: Company name already filled."
-                            )
-                            break
-
-                    except Exception:
-                        pass
-
-            except Exception as e:
-
-                print(
-                    f"DEBUG: Company field check: {e}"
-                )
-
-            # ------------------------------------------------
+            # ==================================================
             # EMAIL
-            # ------------------------------------------------
+            # ==================================================
 
             print("DEBUG: Checking email field...")
 
@@ -348,12 +319,12 @@ def run_playwright_submission(
             except Exception as e:
 
                 print(
-                    f"DEBUG: Email field not available: {e}"
+                    "DEBUG: Email field unavailable: {}".format(e)
                 )
 
-            # ------------------------------------------------
+            # ==================================================
             # SEND ME A COPY
-            # ------------------------------------------------
+            # ==================================================
 
             try:
 
@@ -375,18 +346,18 @@ def run_playwright_submission(
                         )
 
                         print(
-                            "DEBUG: Send-me-a-copy option clicked."
+                            "DEBUG: Send-me-a-copy clicked."
                         )
 
             except Exception as e:
 
                 print(
-                    f"DEBUG: Copy checkbox not available: {e}"
+                    "DEBUG: Copy option unavailable: {}".format(e)
                 )
 
-            # ------------------------------------------------
+            # ==================================================
             # REQUEST TYPE
-            # ------------------------------------------------
+            # ==================================================
 
             print(
                 "DEBUG: Looking for Request Type dropdown..."
@@ -397,22 +368,24 @@ def run_playwright_submission(
             )
 
             print(
-                f"DEBUG: Dropdown count = {dropdowns.count()}"
+                "DEBUG: Dropdown count = {}".format(
+                    dropdowns.count()
+                )
             )
 
             request_selected = False
 
             for i in range(dropdowns.count()):
 
-                dropdown = dropdowns.nth(i)
-
                 try:
+
+                    dropdown = dropdowns.nth(i)
 
                     if not dropdown.is_visible():
                         continue
 
                     print(
-                        f"DEBUG: Checking dropdown {i}"
+                        "DEBUG: Checking dropdown {}".format(i)
                     )
 
                     dropdown.scroll_into_view_if_needed()
@@ -449,7 +422,9 @@ def run_playwright_submission(
                         request_selected = True
 
                         print(
-                            f"SUCCESS: Request Type selected -> {request_type}"
+                            "SUCCESS: Request Type selected -> {}".format(
+                                request_type
+                            )
                         )
 
                         break
@@ -457,7 +432,10 @@ def run_playwright_submission(
                 except Exception as e:
 
                     print(
-                        f"DEBUG: Dropdown {i} failed: {e}"
+                        "DEBUG: Dropdown {} failed: {}".format(
+                            i,
+                            e
+                        )
                     )
 
             if not request_selected:
@@ -473,9 +451,9 @@ def run_playwright_submission(
 
             time.sleep(2)
 
-            # ------------------------------------------------
-            # MULTI-PAGE FORM
-            # ------------------------------------------------
+            # ==================================================
+            # FORM PAGE LOOP
+            # ==================================================
 
             max_pages = 10
             page_count = 0
@@ -486,17 +464,16 @@ def run_playwright_submission(
 
                 print("=" * 50)
                 print(
-                    f"DEBUG: FORM PAGE / STEP {page_count}"
+                    "DEBUG: FORM STEP {}".format(page_count)
                 )
                 print("=" * 50)
 
-                # --------------------------------------------
+                # ==================================================
                 # EXTRA DETAIL
-                # --------------------------------------------
+                # ==================================================
 
                 if extra_detail:
 
-                    # First try dropdowns
                     dropdowns = page.locator(
                         'div[role="listbox"]'
                     )
@@ -510,15 +487,15 @@ def run_playwright_submission(
                             if not dropdown.is_visible():
                                 continue
 
-                            text = dropdown.inner_text()
+                            dropdown_text = dropdown.inner_text()
 
                             if (
-                                "Choose" in text
-                                or "Select" in text
+                                "Choose" in dropdown_text
+                                or "Select" in dropdown_text
                             ):
 
                                 print(
-                                    "DEBUG: Found secondary dropdown."
+                                    "DEBUG: Secondary dropdown found."
                                 )
 
                                 dropdown.click(
@@ -553,12 +530,14 @@ def run_playwright_submission(
                         except Exception as e:
 
                             print(
-                                f"DEBUG: Secondary dropdown error: {e}"
+                                "DEBUG: Secondary dropdown error: {}".format(
+                                    e
+                                )
                             )
 
-                    # ----------------------------------------
-                    # TEXT INPUTS
-                    # ----------------------------------------
+                    # ==================================================
+                    # TEXT INPUT
+                    # ==================================================
 
                     text_inputs = page.locator(
                         'input[type="text"], textarea'
@@ -590,9 +569,9 @@ def run_playwright_submission(
                         except Exception:
                             continue
 
-                # --------------------------------------------
-                # LOOK FOR SUBMIT
-                # --------------------------------------------
+                # ==================================================
+                # FIND SUBMIT
+                # ==================================================
 
                 print(
                     "DEBUG: Checking for Submit button..."
@@ -625,16 +604,12 @@ def run_playwright_submission(
                             submit_found = True
 
                             print(
-                                "SUCCESS: Real Submit button found."
+                                "SUCCESS: Submit button found."
                             )
 
                             submit_btn.scroll_into_view_if_needed()
 
                             time.sleep(1)
-
-                            # --------------------------------
-                            # CLICK SUBMIT
-                            # --------------------------------
 
                             print(
                                 "DEBUG: Clicking Submit..."
@@ -649,48 +624,44 @@ def run_playwright_submission(
                                 "DEBUG: Submit clicked."
                             )
 
-                            # --------------------------------
-                            # VERIFY SUBMISSION
-                            # --------------------------------
+                            time.sleep(3)
 
-                            if verify_submission(page):
+                            confirmed = verify_submission(
+                                page
+                            )
 
+                            if confirmed:
+
+                                print("=" * 70)
                                 print(
-                                    "================================================"
+                                    "SUCCESS: GOOGLE FORM SUBMISSION CONFIRMED"
                                 )
-                                print(
-                                    "SUCCESS: FORM ACTUALLY SUBMITTED"
-                                )
-                                print(
-                                    "================================================"
-                                )
+                                print("=" * 70)
 
                                 return True
 
-                            else:
-
-                                raise Exception(
-                                    "Submit button was clicked, "
-                                    "but Google Forms did not show "
-                                    "the confirmation page. "
-                                    "The response was NOT confirmed."
-                                )
+                            raise Exception(
+                                "Submit was clicked, but Google Forms "
+                                "did not show the confirmation page."
+                            )
 
                     except Exception as e:
 
                         print(
-                            f"DEBUG: Submit attempt failed: {e}"
+                            "DEBUG: Submit attempt failed: {}".format(
+                                e
+                            )
                         )
 
                         if submit_found:
                             raise
 
-                # --------------------------------------------
-                # NEXT BUTTON
-                # --------------------------------------------
+                # ==================================================
+                # FIND NEXT
+                # ==================================================
 
                 print(
-                    "DEBUG: No Submit button found."
+                    "DEBUG: Submit not found. Looking for Next..."
                 )
 
                 next_buttons = page.get_by_role(
@@ -743,24 +714,24 @@ def run_playwright_submission(
                     except Exception as e:
 
                         print(
-                            f"DEBUG: Next button failed: {e}"
+                            "DEBUG: Next failed: {}".format(e)
                         )
 
                 if next_found:
                     continue
 
-                # --------------------------------------------
+                # ==================================================
                 # NOTHING FOUND
-                # --------------------------------------------
+                # ==================================================
 
                 save_debug_screenshot(
                     page,
-                    f"stuck_step_{page_count}"
+                    "stuck_step_{}".format(page_count)
                 )
 
                 raise Exception(
-                    "Could not find either Submit or Next "
-                    f"button on form step {page_count}."
+                    "Could not find Submit or Next button "
+                    "on form step {}.".format(page_count)
                 )
 
             raise Exception(
@@ -770,32 +741,36 @@ def run_playwright_submission(
         except PlaywrightTimeoutError as e:
 
             print(
-                f"TIMEOUT ERROR: {e}"
+                "TIMEOUT ERROR: {}".format(e)
             )
 
             try:
+
                 save_debug_screenshot(
                     page,
                     "timeout_error"
                 )
+
             except Exception:
                 pass
 
             raise Exception(
-                f"Google Forms automation timed out: {e}"
+                "Google Forms automation timed out: {}".format(e)
             )
 
         except Exception as e:
 
             print(
-                f"CRITICAL ERROR: {e}"
+                "CRITICAL ERROR: {}".format(e)
             )
 
             try:
+
                 save_debug_screenshot(
                     page,
                     "critical_error"
                 )
+
             except Exception:
                 pass
 
@@ -807,6 +782,7 @@ def run_playwright_submission(
 
                 try:
                     browser.close()
+
                 except Exception:
                     pass
 
@@ -824,7 +800,7 @@ def index():
 
 
 # ============================================================
-# SUBMIT ENDPOINT
+# SUBMIT API
 # ============================================================
 
 @app.route(
@@ -860,13 +836,21 @@ def submit():
     print("NEW REQUEST RECEIVED")
     print("=" * 70)
 
-    print(f"Falcon ID: {falcon_id}")
-    print(f"Request Type: {request_type}")
-    print(f"Extra Detail: {extra_detail}")
+    print(
+        "Falcon ID: {}".format(falcon_id)
+    )
 
-    # --------------------------------------------------------
+    print(
+        "Request Type: {}".format(request_type)
+    )
+
+    print(
+        "Extra Detail: {}".format(extra_detail)
+    )
+
+    # ========================================================
     # VALIDATION
-    # --------------------------------------------------------
+    # ========================================================
 
     if not falcon_id:
 
@@ -882,9 +866,9 @@ def submit():
             "message": "Request Type is required."
         }), 400
 
-    # --------------------------------------------------------
-    # ACTUAL SUBMISSION
-    # --------------------------------------------------------
+    # ========================================================
+    # SUBMIT
+    # ========================================================
 
     try:
 
@@ -893,10 +877,6 @@ def submit():
             request_type=request_type,
             extra_detail=extra_detail
         )
-
-        # VERY IMPORTANT:
-        # Never return success unless the function
-        # explicitly confirms the Google Forms page.
 
         if submitted is True:
 
@@ -911,27 +891,26 @@ def submit():
         return jsonify({
             "status": "error",
             "message": (
-                "The ticket was not confirmed by Google Forms."
+                "Google Forms did not confirm the submission."
             )
         }), 500
 
     except Exception as e:
 
         print(
-            f"SUBMISSION FAILED: {e}"
+            "SUBMISSION FAILED: {}".format(e)
         )
 
         return jsonify({
             "status": "error",
             "message": (
-                "Ticket was NOT submitted. "
-                f"Reason: {str(e)}"
+                "Ticket was NOT submitted. Reason: {}".format(e)
             )
         }), 500
 
 
 # ============================================================
-# RUN SERVER
+# START SERVER
 # ============================================================
 
 if __name__ == "__main__":
@@ -945,7 +924,7 @@ if __name__ == "__main__":
 
     print("=" * 70)
     print("BTR DELIVERY FORM AUTOMATION")
-    print(f"Server starting on port {port}")
+    print("Server starting on port {}".format(port))
     print("=" * 70)
 
     app.run(
@@ -954,62 +933,34 @@ if __name__ == "__main__":
     )
 ```
 
-### What changed
+### Important: Render deployment
 
-The most important change is this:
-
-**Before:**
+Your `requirements.txt` should be:
 
 ```text
-Click Submit
-↓
-wait 4 seconds
-↓
-SUCCESS
+Flask
+gunicorn
+playwright
 ```
 
-**Now:**
+And your Render **Start Command** should remain:
 
 ```text
-Click Submit
-↓
-wait for Google Forms
-↓
-check confirmation page
-↓
-confirmation found?
-   ├── YES → SUCCESS
-   └── NO  → ERROR
+gunicorn app:app
 ```
 
-So your webpage **cannot say "Ticket submitted successfully" simply because the Submit button was clicked.**
-
-I also removed the dangerous behavior where this situation:
+For Render, you also need Chromium installed during the build. If your current **Build Command** is only:
 
 ```text
-No Submit
-No Next
-↓
-return True
+pip install -r requirements.txt
 ```
 
-was being interpreted as success.
-
-### One thing I need you to check
-
-Your Google Form may have **conditional sections** depending on `request_type`. In that case, the `extra_detail` handling in the current script may still need to be adjusted to your exact questions.
-
-If this updated version still doesn't submit, **don't change anything else**. Send me the new terminal/Render log beginning with:
+change it to:
 
 ```text
-NEW REQUEST RECEIVED
+pip install -r requirements.txt && playwright install chromium
 ```
 
-and especially the lines around:
+Then push the changes to GitHub and redeploy.
 
-```text
-DEBUG: FORM PAGE / STEP
-DEBUG: Checking for Submit button
-```
-
-The new version also creates a `debug_screenshots` folder. The screenshot generated when it gets stuck will show us **exactly what Google Forms displayed to Playwright**.
+**Do not put anything from the explanation into `app.py`—only the code inside the code block above.**
