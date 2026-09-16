@@ -36,20 +36,26 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
             # --- AUTOMATICALLY FILL EMAIL & CHECK "SEND ME A COPY" ---
             try:
                 email_input = page.locator('input[type="email"]').first
-                if email_input.is_visible() and not email_input.input_value():
+                if email_input.is_visible():
                     email_input.fill("btrdeliverytickets@gmail.com")
-            except Exception:
-                pass
+                    email_input.dispatch_event('input')
+                    email_input.dispatch_event('change')
+                    print("Successfully filled email address.")
+            except Exception as e:
+                print(f"Could not fill email: {e}")
 
             try:
+                page.mouse.wheel(0, 200)
+                time.sleep(0.5)
+                
                 copy_option = page.locator('div[role="checkbox"]:has-text("Send me a copy"), span:has-text("Send me a copy")').first
                 if copy_option.is_visible():
                     copy_option.click(force=True)
-            except Exception:
-                try:
-                    page.get_by_label("Send me a copy of my responses").click(force=True)
-                except Exception:
-                    pass
+                    print("Successfully clicked 'Send me a copy' checkbox.")
+                else:
+                    print("Checkbox was not visible.")
+            except Exception as e:
+                print(f"Could not click copy checkbox: {e}")
             # ---------------------------------------------------------
 
             dropdowns = page.locator('div[role="listbox"]')
