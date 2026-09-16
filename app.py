@@ -44,23 +44,22 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                     email_input.fill("btrdeliverytickets@gmail.com")
                     email_input.dispatch_event('input')
                     email_input.dispatch_event('change')
-                    print("DEBUG: Email successfully filled.")
+                    print("DEBUG: Successfully filled email address.")
             except Exception as e:
-                print(f"DEBUG: Email fill skipped/failed: {e}")
+                print(f"DEBUG: Could not fill email: {e}")
 
             try:
-                page.mouse.wheel(0, 200)
-                time.sleep(0.5)
-                copy_option = page.locator('div[role="checkbox"]:has-text("Send me a copy"), span:has-text("Send me a copy")').first
-                if copy_option.is_visible():
-                    copy_option.click(force=True)
-                    print("DEBUG: 'Send me a copy' checkbox clicked.")
+                # Wait for the checkbox label to be fully loaded and visible
+                copy_label = page.locator('span:has-text("Send me a copy of my responses")').first
+                copy_label.wait_for(state="visible", timeout=10000)
+                
+                # Scroll it into view and click via JS force
+                copy_label.scroll_into_view_if_needed()
+                time.sleep(1)
+                copy_label.click(force=True)
+                print("DEBUG: Successfully checked 'Send me a copy' via label.")
             except Exception as e:
-                try:
-                    page.get_by_label("Send me a copy of my responses").click(force=True)
-                    print("DEBUG: Clicked copy checkbox using label.")
-                except Exception as ex:
-                    print(f"DEBUG: Could not click copy checkbox: {ex}")
+                print(f"DEBUG: Could not click copy checkbox: {e}")
             # ---------------------------------------------------------
 
             # Select first dropdown/request type
