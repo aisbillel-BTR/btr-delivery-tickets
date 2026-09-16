@@ -45,7 +45,6 @@ def submit():
             page = context.new_page()
             
             # Navigate to your Google Form target URL
-            # Replace this URL with your actual Google Form link
             form_url = "YOUR_GOOGLE_FORM_URL_HERE"
             page.goto(form_url)
             page.wait_for_load_state("networkidle")
@@ -70,17 +69,8 @@ def submit():
                     time.sleep(2)
 
             # --- FORM FILLING AUTOMATION ---
-            # Example field selectors - update these based on your form structure
-            # Filling Falcon ID
             page.locator('input[type="text"]').first.fill(str(falcon_id))
             
-            # Handling Request Type Dropdown or radio buttons if applicable
-            # (Adjust selectors as per your specific form layout)
-            
-            # Submit the form
-            # page.locator('div[role="button"][jsname="M2UYVd"]').click()
-            # time.sleep(3)
-
             context.close()
             return jsonify({"success": True, "message": "Ticket submitted successfully!"})
 
