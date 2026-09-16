@@ -45,7 +45,7 @@ def submit():
             page = context.new_page()
             
             # Navigate to your Google Form target URL
-            form_url = "YOUR_GOOGLE_FORM_URL_HERE"
+            form_url = "https://docs.google.com/forms/d/e/1FAIpQLSfONIExs2g6a97p9SA0Hb5ef3EHk4ETO5ZiKW6ikoYGSpI_Pg/viewform?pli=1"
             page.goto(form_url)
             page.wait_for_load_state("networkidle")
 
