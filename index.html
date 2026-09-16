@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Snoonu Tickets</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex items-center justify-center p-4">
+
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 space-y-5">
+        <h1 class="text-2xl font-bold text-center text-slate-900">Snoonu Automation</h1>
+
+        <div id="statusMessage" class="hidden p-3 rounded-lg text-sm text-center font-medium"></div>
+
+        <form id="ticketForm" class="space-y-4">
+            <div>
+                <label class="block text-sm font-semibold mb-1">Falcon ID</label>
+                <input type="number" id="falcon_id" required class="w-full border border-slate-300 rounded-xl p-3 text-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold mb-1">Request Type</label>
+                <select id="request_type" onchange="handleTypeChange()" class="w-full border border-slate-300 rounded-xl p-3 text-base bg-white outline-none">
+                    <option value="Reactivate">Reactivate</option>
+                    <option value="Block">Block</option>
+                    <option value="Terminate">Terminate</option>
+                    <option value="Update Mobile Number">Update Mobile Number</option>
+                    <option value="Change Zone">Change Zone</option>
+                    <option value="Live Order Assistance">Live Order Assistance</option>
+                </select>
+            </div>
+
+            <div id="subInputContainer" class="hidden">
+                <label id="subLabel" class="block text-sm font-semibold mb-1"></label>
+                <div id="subInputWrapper"></div>
+            </div>
+
+            <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl text-lg transition duration-200">
+                Submit Ticket
+            </button>
+        </form>
+    </div>
+
+    <script>
+        const zones = ["Al Hilal", "Al Khor", "Al Sadd", "Al Thumama", "Al Wakrah", "Al Wakrah South", "Ain Khaled", "Ar-Rayyan", "Bani Hajer", "Dafna", "Gharrafa", "Industrial Area", "Izghawa", "Lusail", "Muaither", "Pearl", "Rawdat Al Hamama", "Umm Ghuwailina-Najma-Mushaireb", "Umm Salal Ali", "Umm Salal Ali North", "Umm Salal Muhammed North", "Umm Salal Muhammed South"];
+
+        function handleTypeChange() {
+            const type = document.getElementById('request_type').value;
+            const container = document.getElementById('subInputContainer');
+            const label = document.getElementById('subLabel');
+            const wrapper = document.getElementById('subInputWrapper');
+
+            container.classList.remove('hidden');
+
+            if (type === 'Block') {
+                label.innerText = 'Block Reason';
+                wrapper.innerHTML = createSelect(['Vehicle Issue', 'Sick', 'Accident', 'By Manager']);
+            } else if (type === 'Terminate') {
+                label.innerText = 'Termination Reason';
+                wrapper.innerHTML = createSelect(['Vacation', 'Resignation', 'By Manager']);
+            } else if (type === 'Change Zone') {
+                label.innerText = 'Preferred Zone';
+                wrapper.innerHTML = createSelect(zones);
+            } else if (type === 'Update Mobile Number') {
+                label.innerText = 'New Mobile Number (Excluding +974)';
+                wrapper.innerHTML = `<input type="text" id="extra_detail" required class="w-full border border-slate-300 rounded-xl p-3 text-base">`;
+            } else if (type === 'Live Order Assistance') {
+                label.innerText = 'Details (e.g. Order ID, QID)';
+                wrapper.innerHTML = `<input type="text" id="extra_detail" required class="w-full border border-slate-300 rounded-xl p-3 text-base">`;
+            } else {
+                container.classList.add('hidden');
+                wrapper.innerHTML = '';
+            }
+        }
+
+        function createSelect(opts) {
+            return `<select id="extra_detail" class="w-full border border-slate-300 rounded-xl p-3 text-base bg-white">${opts.map(o => `<option value="${o}">${o}</option>`).join('')}</select>`;
+        }
+
+        document.getElementById('ticketForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            const msg = document.getElementById('statusMessage');
+
+            btn.disabled = true;
+            btn.innerText = 'Submitting...';
+            msg.className = 'p-3 rounded-lg text-sm text-center font-medium bg-blue-100 text-blue-800';
+            msg.innerText = 'Processing form submission...';
+            msg.classList.remove('hidden');
+
+            const payload = {
+                falcon_id: document.getElementById('falcon_id').value,
+                request_type: document.getElementById('request_type').value,
+                extra_detail: document.getElementById('extra_detail') ? document.getElementById('extra_detail').value : ''
+            };
+
+            try {
+                const res = await fetch('/submit', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    msg.className = 'p-3 rounded-lg text-sm text-center font-medium bg-green-100 text-green-800';
+                    msg.innerText = 'Success! Ticket submitted.';
+                    document.getElementById('falcon_id').value = '';
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (err) {
+                msg.className = 'p-3 rounded-lg text-sm text-center font-medium bg-red-100 text-red-800';
+                msg.innerText = 'Error: ' + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Submit Ticket';
+            }
+        });
+    </script>
+</body>
+</html>
