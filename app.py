@@ -25,6 +25,7 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
             page.goto(form_url, timeout=60000, wait_until="domcontentloaded")
             time.sleep(1.5)
 
+            # Handle draft prompts if they appear
             draft_buttons = page.locator(
                 'div[role="button"]:has-text("Keep previous"), '
                 'div[role="button"]:has-text("Discard draft")'
@@ -40,24 +41,23 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                     email_input.fill("btrdeliverytickets@gmail.com")
                     email_input.dispatch_event('input')
                     email_input.dispatch_event('change')
-                    print("Successfully filled email address.")
-            except Exception as e:
-                print(f"Could not fill email: {e}")
+            except Exception:
+                pass
 
             try:
                 page.mouse.wheel(0, 200)
                 time.sleep(0.5)
-                
                 copy_option = page.locator('div[role="checkbox"]:has-text("Send me a copy"), span:has-text("Send me a copy")').first
                 if copy_option.is_visible():
                     copy_option.click(force=True)
-                    print("Successfully clicked 'Send me a copy' checkbox.")
-                else:
-                    print("Checkbox was not visible.")
-            except Exception as e:
-                print(f"Could not click copy checkbox: {e}")
+            except Exception:
+                try:
+                    page.get_by_label("Send me a copy of my responses").click(force=True)
+                except Exception:
+                    pass
             # ---------------------------------------------------------
 
+            # Select first dropdown/request type
             dropdowns = page.locator('div[role="listbox"]')
             if dropdowns.count() > 0 and dropdowns.first.is_visible():
                 dropdowns.first.click(force=True)
@@ -68,6 +68,7 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
 
             time.sleep(1.5)
 
+            # Page navigation loop to step through form pages safely
             max_pages = 10
             page_count = 0
 
@@ -76,6 +77,7 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                     break
                 page_count += 1
 
+                # Handle secondary dropdowns if present
                 sec_dropdown = page.locator('div[role="listbox"]').first
                 if sec_dropdown.is_visible():
                     sec_text = sec_dropdown.inner_text()
@@ -87,6 +89,7 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                             target_opt.click(force=True)
                             time.sleep(1)
 
+                # Fill extra details/text areas if needed
                 if extra_detail:
                     text_inputs = page.locator('input[type="text"], textarea')
                     for i in range(text_inputs.count()):
@@ -96,15 +99,23 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                             time.sleep(0.5)
                             break
 
+                # Check if the final Submit button is available on this page
                 submit_btn = page.locator('div[role="button"]:has-text("Submit")').first
                 if submit_btn.is_visible():
-                    submit_btn.click()
-                    time.sleep(3)
+                    submit_btn.click(force=True)
+                    
+                    # Wait explicitly to ensure Google Forms processes the submission
+                    try:
+                        page.wait_for_url("**/formResponse", timeout=10000)
+                    except Exception:
+                        time.sleep(4) # Fallback wait
+                    
                     return True
 
+                # Otherwise look for a Next button to proceed
                 next_btn = page.locator('div[role="button"]:has-text("Next")').first
                 if next_btn.is_visible():
-                    next_btn.click()
+                    next_btn.click(force=True)
                     time.sleep(2)
                 else:
                     break
