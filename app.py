@@ -33,6 +33,25 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                 draft_buttons.first.click(force=True)
                 time.sleep(1)
 
+            # --- AUTOMATICALLY FILL EMAIL & CHECK "SEND ME A COPY" ---
+            try:
+                email_input = page.locator('input[type="email"]').first
+                if email_input.is_visible() and not email_input.input_value():
+                    email_input.fill("btrdeliverytickets@gmail.com")
+            except Exception:
+                pass
+
+            try:
+                copy_option = page.locator('div[role="checkbox"]:has-text("Send me a copy"), span:has-text("Send me a copy")').first
+                if copy_option.is_visible():
+                    copy_option.click(force=True)
+            except Exception:
+                try:
+                    page.get_by_label("Send me a copy of my responses").click(force=True)
+                except Exception:
+                    pass
+            # ---------------------------------------------------------
+
             dropdowns = page.locator('div[role="listbox"]')
             if dropdowns.count() > 0 and dropdowns.first.is_visible():
                 dropdowns.first.click(force=True)
@@ -104,8 +123,6 @@ def submit():
         return jsonify({"status": "success", "message": "Ticket submitted successfully!"})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-import os
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
