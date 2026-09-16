@@ -22,16 +22,20 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
         except Exception:
             pass
 
+    # Automatically run headless if on Render/cloud, or if explicitly requested
+    is_headless = os.environ.get("RENDER", False) or os.environ.get("HEADLESS", "False").lower() == "true"
+
     with sync_playwright() as p:
         try:
             context = p.chromium.launch_persistent_context(
                 user_data_dir=user_data_dir,
-                headless=False,
+                headless=is_headless,
                 args=[
                     "--no-sandbox", 
                     "--disable-setuid-sandbox", 
                     "--disable-blink-features=AutomationControlled",
-                    "--disable-infobars"
+                    "--disable-infobars",
+                    "--disable-dev-shm-usage"
                 ],
                 user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
             )
@@ -40,7 +44,7 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                 shutil.rmtree(user_data_dir, ignore_errors=True)
             context = p.chromium.launch_persistent_context(
                 user_data_dir=user_data_dir,
-                headless=False,
+                headless=is_headless,
                 args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-blink-features=AutomationControlled"]
             )
         
@@ -57,6 +61,9 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
 
             # --- LOGIN CHECK ---
             if "accounts.google.com" in page.url or "signin" in page.url:
+                if is_headless:
+                    raise Exception("Google Login required, but browser is running in headless mode on the cloud! Please log in locally first and save your session cookies.")
+                
                 print("\n" + "="*50)
                 print("GOOGLE LOGIN REQUIRED:")
                 print("Please log in manually in the popup browser window.")
@@ -158,7 +165,6 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                             if options.count() > 0:
                                 target_opt = options.first
                                 
-                                # Flexible substring matching for Request Type or Sub-options
                                 search_keyword = request_type.strip().lower() if page_count == 1 and request_type else extra_detail.strip().lower()
                                 
                                 if search_keyword:
@@ -166,7 +172,6 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                                     for opt_i in range(options.count()):
                                         opt_element = options.nth(opt_i)
                                         opt_inner = opt_element.inner_text().strip().lower()
-                                        # Match if any key part of the request type text is inside the option
                                         if search_keyword in opt_inner or opt_inner in search_keyword:
                                             target_opt = opt_element
                                             found_match = True
@@ -192,10 +197,9 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                 if submit_btn.is_visible():
                     print("DEBUG: Submit button found! Looking for 'Send me a copy' toggle...")
                     
-                    # --- CLICK "SEND ME A COPY OF MY RESPONSES" TOGGLE ---
                     try:
                         copy_toggle = page.locator('div:has-text("Send me a copy of my responses")').locator('div[role="checkbox"], div[role="switch"], div.export-toggle, input[type="checkbox"]').first
-                        if copy_toggle.is_visible():
+                        if copy_toggle.is_visitor() if hasattr(copy_toggle, 'is_visitor') else copy_toggle.is_visible():
                             copy_toggle.click(force=True)
                             print("DEBUG: Clicked 'Send me a copy' toggle.")
                             time.sleep(1)
