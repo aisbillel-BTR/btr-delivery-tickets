@@ -22,8 +22,9 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
         except Exception:
             pass
 
-    # Automatically run headless if on Render/cloud, or if explicitly requested
-    is_headless = os.environ.get("RENDER", False) or os.environ.get("HEADLESS", "False").lower() == "true"
+    # FIXED: Properly evaluate to a strict Python boolean (True/False)
+    render_env = os.environ.get("RENDER", "False")
+    is_headless = str(render_env).lower() in ["true", "1", "yes"] or os.environ.get("HEADLESS", "False").lower() == "true"
 
     with sync_playwright() as p:
         try:
@@ -199,7 +200,7 @@ def run_playwright_submission(falcon_id, request_type, extra_detail=""):
                     
                     try:
                         copy_toggle = page.locator('div:has-text("Send me a copy of my responses")').locator('div[role="checkbox"], div[role="switch"], div.export-toggle, input[type="checkbox"]').first
-                        if copy_toggle.is_visitor() if hasattr(copy_toggle, 'is_visitor') else copy_toggle.is_visible():
+                        if copy_toggle.is_visible():
                             copy_toggle.click(force=True)
                             print("DEBUG: Clicked 'Send me a copy' toggle.")
                             time.sleep(1)
