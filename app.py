@@ -23,7 +23,7 @@ def submit():
 
     try:
         with sync_playwright() as p:
-            # On Render, we MUST run headless=True. Locally, you can set it to False if you want to watch it.
+            # On Render, we MUST run headless=True. Locally, you can set it to False to watch.
             headless_mode = True if IS_RENDER else False
 
             # Launch persistent context to preserve your Google login session
@@ -44,7 +44,7 @@ def submit():
 
             page = context.new_page()
             
-            # Navigate to your Google Form target URL
+            # Your Google Form URL
             form_url = "https://docs.google.com/forms/d/e/1FAIpQLSfONIExs2g6a97p9SA0Hb5ef3EHk4ETO5ZiKW6ikoYGSpI_Pg/viewform?pli=1"
             page.goto(form_url)
             page.wait_for_load_state("networkidle")
@@ -54,7 +54,7 @@ def submit():
                 if headless_mode:
                     return jsonify({
                         "success": False, 
-                        "error": "Google Login required, but browser is running in headless mode on the cloud! Please log in locally first and save your session cookies."
+                        "error": "Google Login required, but browser is running in headless mode! Please log in locally first to save cookies."
                     }), 400
                 else:
                     print("\n" + "="*50)
@@ -69,13 +69,18 @@ def submit():
                     time.sleep(2)
 
             # --- FORM FILLING AUTOMATION ---
+            # Filling Falcon ID into the first text input field found on the form
             page.locator('input[type="text"]').first.fill(str(falcon_id))
+            
+            # Add your remaining form interactions here if needed
             
             context.close()
             return jsonify({"success": True, "message": "Ticket submitted successfully!"})
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        error_msg = str(e)
+        print(f"CRITICAL ERROR in Playwright script: {error_msg}")
+        return jsonify({"success": False, "error": error_msg}), 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5001))
