@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: btr-delivery-tickets
+    env: python
+    buildCommand: "pip install -r requirements.txt && python -m playwright install chromium"
+    startCommand: "python app.py"
+    envVars:
+      - key: RENDER
+        value: "true"
